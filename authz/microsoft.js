@@ -1,5 +1,5 @@
-function isAuthorized(decoded, request, callback, unauthorized, internalServerError, config) {
-  callback(null, request);
+function isAuthorized(decoded, request, unauthorized, internalServerError, config) {
+  return request;
 }
 
 function getSubject(decoded) {
