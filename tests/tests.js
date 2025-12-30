@@ -1,15 +1,14 @@
 const fs = require('fs');
-const opn = require('opn');
+const open = require('open');
 const prompt = require('prompt');
 const colors = require('colors/safe');
 const http = require('http');
-const url = require('url');
-const qs = require('querystring');
 const shell = require('shelljs');
 var beautify = require('json-beautify');
 var ngrok = require('ngrok');
 var dateFormat = require('dateformat');
-var AWS = require('aws-sdk');
+const { S3Client } = require('@aws-sdk/client-s3');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 var logName = dateFormat(Date.now(), "mm-dd-yyyy-hh:MM:ss");
 let server;
 
@@ -33,17 +32,19 @@ var config = JSON.parse(fs.readFileSync("distributions/" + DISTRIBUTION + "/conf
 var testConfig = JSON.parse(fs.readFileSync("distributions/" + DISTRIBUTION + "/config-test.json"));
 
 // Update AWS config
-AWS.config.update({
-  accessKeyId: testConfig.aws.accessKeyId,
-  secretAccessKey: testConfig.aws.secretAccessKey,
+const lambda = new LambdaClient({
+  credentials: {
+    accessKeyId: testConfig.aws.accessKeyId,
+    secretAccessKey: testConfig.aws.secretAccessKey
+  },
   region: testConfig.aws.region
 });
-var lambda = new AWS.Lambda();
 
 // Start local server
 server = http.createServer();
 server.on('request', function(req, res){
-  var querystring = qs.parse(url.parse(req.url).query);
+  const urlObj = new URL(req.url, `http://${req.headers.host}`);
+  var querystring = Object.fromEntries(urlObj.searchParams);
   res.writeHead(200, {'Content-Type': 'text/html'});
   if (querystring.code != undefined) {
     // Write simple HTML page with copy button for code
@@ -129,20 +130,18 @@ function setupRedirect(url, lambdaFunction) {
     fs.writeFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "*/ Initial Request Payload /*\n" + beautify(JSON.parse(params.Payload), null, 2, 80));
 
     // Invoke lambda
-    lambda.invoke(params, function(err, data) {
-      if (err) {
-        console.log(err, err.stack);
-      } else {
-        // Update log
-        fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n*/ Initial Request Response /*\nStatus Code: " + data.StatusCode + "\nExecuted Version: " + data.ExecutedVersion + "\nLog Result:\n" + new Buffer(data.LogResult, 'base64').toString('ascii') + "\nPayload:\n" + beautify(JSON.parse(data.Payload), null, 2, 80));
-        var payload = JSON.parse(data.Payload);
-        console.log(payload.headers.location[0].value);
-        opn(payload.headers.location[0].value);
+    lambda.send(new InvokeCommand(params)).then(data => {
+      // Update log
+      const payloadStr = new TextDecoder().decode(data.Payload);
+      fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n*/ Initial Request Response /*\nStatus Code: " + data.StatusCode + "\nLog Result:\n" + (data.LogResult ? Buffer.from(data.LogResult, 'base64').toString('ascii') : '') + "\nPayload:\n" + beautify(JSON.parse(payloadStr), null, 2, 80));
+      var payload = JSON.parse(payloadStr);
+      console.log(payload.headers.location[0].value);
+      open(payload.headers.location[0].value);
 
-        // Prompt user for code on open page
-        prompt.message = colors.blue(">");
-        prompt.start();
-        prompt.get({
+      // Prompt user for code on open page
+      prompt.message = colors.blue(">");
+      prompt.start();
+      prompt.get({
           properties: {
             code: {
               description: colors.red("Enter the code in your browser received from authentication provider"),
@@ -161,43 +160,45 @@ function setupRedirect(url, lambdaFunction) {
           fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n\n*/ Callback Payload /*\n" + beautify(JSON.parse(params.Payload), null, 2, 80));
 
           // Invoke lambda
-          lambda.invoke(params, function(err, data) {
-            if (err) {
-              console.log(err, err.stack);
-            } else {
-              // Update log
-              fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n*/ Callback Response /*\nStatus Code: " + data.StatusCode + "\nExecuted Version: " + data.ExecutedVersion + "\nLog Result:\n" + new Buffer(data.LogResult, 'base64').toString('ascii') + "\nPayload:\n" + beautify(JSON.parse(data.Payload), null, 2, 80));
+          lambda.send(new InvokeCommand(params)).then(data => {
+            // Update log
+            const payloadStr = new TextDecoder().decode(data.Payload);
+            fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n*/ Callback Response /*\nStatus Code: " + data.StatusCode + "\nLog Result:\n" + (data.LogResult ? Buffer.from(data.LogResult, 'base64').toString('ascii') : '') + "\nPayload:\n" + beautify(JSON.parse(payloadStr), null, 2, 80));
 
-              // Setup token lambda request
-              var params = {
-                FunctionName: lambdaFunction,
-                Payload: tokenRequestPayload(url, JSON.parse(data.Payload).headers["set-cookie"][0].value),
-                LogType: "Tail"
-              }
-
-              // Update log
-              fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n\n*/ Token Payload /*\n" + beautify(JSON.parse(params.Payload), null, 2, 80));
-
-              // Invoke lambda
-              lambda.invoke(params, function(err, data) {
-                if (err) {
-                  console.log(err, err.stack);
-                } else {
-                  // Update log                  
-                  fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n*/ Token Response /*\nStatus Code: " + data.StatusCode + "\nExecuted Version: " + data.ExecutedVersion + "\nLog Result:\n" + new Buffer(data.LogResult, 'base64').toString('ascii') + "\nPayload:\n" + beautify(JSON.parse(data.Payload), null, 2, 80));
-                }
-
-                // Notify user of test end and kill ngrok/local server
-                console.log(colors.green("Log created at /distributions/" + DISTRIBUTION + "/logs/" + logName + ".log"));
-                server.close();
-                ngrok.disconnect();
-                ngrok.kill();
-                process.exit();
-              });
+            // Setup token lambda request
+            var params = {
+              FunctionName: lambdaFunction,
+              Payload: tokenRequestPayload(url, JSON.parse(payloadStr).headers["set-cookie"][0].value),
+              LogType: "Tail"
             }
+
+            // Update log
+            fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n\n*/ Token Payload /*\n" + beautify(JSON.parse(params.Payload), null, 2, 80));
+
+            // Invoke lambda
+            lambda.send(new InvokeCommand(params)).then(data => {
+              // Update log
+              const tokenPayloadStr = new TextDecoder().decode(data.Payload);
+              fs.appendFileSync('distributions/' + DISTRIBUTION + '/logs/' + logName + '.log', "\n*/ Token Response /*\nStatus Code: " + data.StatusCode + "\nLog Result:\n" + (data.LogResult ? Buffer.from(data.LogResult, 'base64').toString('ascii') : '') + "\nPayload:\n" + beautify(JSON.parse(tokenPayloadStr), null, 2, 80));
+
+              // Notify user of test end and kill ngrok/local server
+              console.log(colors.green("Log created at /distributions/" + DISTRIBUTION + "/logs/" + logName + ".log"));
+              server.close();
+              ngrok.disconnect();
+              ngrok.kill();
+              process.exit();
+            }).catch(err => {
+              console.log(err, err.stack);
+              process.exit(1);
+            });
+          }).catch(err => {
+            console.log(err, err.stack);
+            process.exit(1);
           });
         });
-      }
+    }).catch(err => {
+      console.log(err, err.stack);
+      process.exit(1);
     });
   });
 }
