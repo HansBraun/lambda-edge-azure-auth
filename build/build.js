@@ -3,7 +3,6 @@ const prompt = require('prompt');
 const fs = require('fs');
 const axios = require('axios');
 const colors = require('colors/safe');
-const url = require('url');
 const R = require('ramda');
 
 var config = { AUTH_REQUEST: {}, TOKEN_REQUEST: {} };
@@ -83,7 +82,7 @@ function microsoftConfiguration() {
     config.DISCOVERY_DOCUMENT = 'https://login.microsoftonline.com/' + result.TENANT + '/v2.0/.well-known/openid-configuration';
     config.SESSION_DURATION = parseInt(result.SESSION_DURATION, 10) * 60 * 60;
 
-    config.CALLBACK_PATH = url.parse(result.REDIRECT_URI).pathname;
+    config.CALLBACK_PATH = new URL(result.REDIRECT_URI).pathname;
 
     config.AUTH_REQUEST.client_id = result.CLIENT_ID;
     config.AUTH_REQUEST.redirect_uri = result.REDIRECT_URI;

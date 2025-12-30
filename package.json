@@ -4,6 +4,9 @@
   "description": "An AWS Cloudfront Lambda@Edge function to authenticate requests using Microsoft Azure.",
   "private": true,
   "main": "index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "test": "cd tests && npm install && cd .. && node tests/tests.js",
     "build": "npm install && cd build && npm install && cd .. && node build/build.js",
@@ -13,27 +16,24 @@
   "repository": "github:nickshine/lambda-edge-azure-auth",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.21.2",
-    "cookie": "^0.4.1",
-    "crypto": "^1.0.1",
-    "jsonwebtoken": "^8.5.1",
-    "jwk-to-pem": "^2.0.4",
-    "nonce": "^1.0.4",
-    "querystring": "^0.2.0",
-    "url": "^0.11.0"
+    "axios": "^1.7.9",
+    "cookie": "^0.7.2",
+    "jsonwebtoken": "^9.0.2",
+    "jwk-to-pem": "^2.0.6",
+    "nonce": "^1.0.4"
   },
   "devDependencies": {
-    "@commitlint/cli": "^11.0.0",
-    "@commitlint/config-conventional": "^11.0.0",
-    "@semantic-release/changelog": "^5.0.1",
-    "@semantic-release/exec": "^5.0.0",
-    "@semantic-release/git": "^9.0.0",
-    "@semantic-release/npm": "^7.0.6",
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/npm": "^12.0.0",
     "cz-conventional-changelog": "^3.3.0",
-    "husky": "^4.3.0",
-    "semantic-release": "^17.1.2",
-    "webpack": "^4.44.2",
-    "webpack-cli": "^3.3.12"
+    "husky": "^9.0.0",
+    "semantic-release": "^24.0.0",
+    "webpack": "^5.96.0",
+    "webpack-cli": "^5.1.4"
   },
   "husky": {
     "hooks": {

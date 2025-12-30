@@ -3,17 +3,19 @@
   "version": "1.0.0",
   "description": "Build files for cloudfront-auth",
   "main": "index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.21.2",
-    "node-rsa": "^0.4.2",
-    "prompt": "^1.0.0",
-    "ramda": "^0.25.0",
-    "shelljs": "^0.8.0",
-    "url": "^0.11.0"
+    "axios": "^1.7.9",
+    "node-rsa": "^1.1.1",
+    "prompt": "^1.3.0",
+    "ramda": "^0.30.1",
+    "shelljs": "^0.8.5"
   }
 }
