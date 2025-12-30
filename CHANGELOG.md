@@ -1,3 +1,5 @@
+## empty commit
+
 ## [0.3.3](https://github.com/nickshine/lambda-edge-azure-auth/compare/v0.3.2...v0.3.3) (2020-10-05)
 
 
