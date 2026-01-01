@@ -59,6 +59,37 @@ be automatically generated).
 
 [Manual Deployment](https://github.com/Widen/cloudfront-auth/wiki/Manual-Deployment) __*or*__ [AWS SAM Deployment](https://github.com/Widen/cloudfront-auth/wiki/AWS-SAM-Deployment)
 
+## API vs Web Request Handling
+
+This lambda function automatically detects API requests and handles authentication failures differently:
+
+### API Requests (paths starting with `/api/`)
+- Returns **401 JSON response** on authentication failure
+- Response format: `{"error": "unauthorized", "error_description": "...", "error_uri": "..."}`
+- No redirects to login page
+- Suitable for AJAX, mobile apps, CLI tools, and other API clients
+
+### Web Requests (all other paths)
+- Returns **302 redirect** to Azure AD login page on authentication failure
+- Maintains original request URL in OAuth state
+- Standard browser-based authentication flow
+
+This pattern allows the same Lambda@Edge function to protect both:
+- **Web content** (HTML, CSS, JS) with redirect-based authentication
+- **API endpoints** with standard HTTP 401 responses
+
+### Example Behavior
+
+```javascript
+// Unauthenticated request to web page
+GET /dashboard
+→ 302 redirect to Azure AD login
+
+// Unauthenticated request to API endpoint
+GET /api/users
+→ 401 {"error": "unauthorized"}
+```
+
 ## Simple URLs and Trailing Slash Redirects
 
 This lambda function has some options that enable CloudFront to behave similar to to most static

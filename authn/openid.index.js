@@ -51,6 +51,9 @@ async function mainProcess(event, context) {
   const request = event.Records[0].cf.request;
   const headers = request.headers;
   const queryDict = Object.fromEntries(new URLSearchParams(request.querystring));
+  
+  // Detect if this is an API request
+  const isApi = isApiRequest(request);
   if (event.Records[0].cf.config.hasOwnProperty('test')) {
     config.AUTH_REQUEST.redirect_uri = event.Records[0].cf.config.test + config.CALLBACK_PATH;
     config.TOKEN_REQUEST.redirect_uri = event.Records[0].cf.config.test + config.CALLBACK_PATH;
@@ -99,7 +102,7 @@ async function mainProcess(event, context) {
 
     // Verify code is in querystring
     if (!queryDict.code) {
-      return unauthorized('No Code Found', '', '');
+      return unauthorized('No Code Found', '', '', isApi);
     }
     config.TOKEN_REQUEST.code = queryDict.code;
 
@@ -178,19 +181,19 @@ async function mainProcess(event, context) {
             },
           };
         } else {
-          return unauthorized('Nonce Verification Failed', '', '');
+          return unauthorized('Nonce Verification Failed', '', '', isApi);
         }
       } catch (err) {
         switch (err.name) {
-          case 'TokenExpiredError':
-            console.log("Token expired, redirecting to OIDC provider.");
-            return redirect(request, headers);
-          case 'JsonWebTokenError':
-            console.log("JWT error, unauthorized.");
-            return unauthorized('Json Web Token Error', err.message, '');
-          default:
-            console.log("Unknown JWT error, unauthorized.");
-            return unauthorized('Unknown JWT', 'User ' + decodedData.payload.email + ' is not permitted.', '');
+        case 'TokenExpiredError':
+          console.log("Token expired, redirecting to OIDC provider.");
+          return redirect(request, headers, isApi);
+        case 'JsonWebTokenError':
+          console.log("JWT error, unauthorized.");
+          return unauthorized('Json Web Token Error', err.message, '', isApi);
+        default:
+          console.log("Unknown JWT error, unauthorized.");
+          return unauthorized('Unknown JWT', 'User ' + decodedData.payload.email + ' is not permitted.', '', isApi);
         }
       }
     } catch (error) {
@@ -223,22 +226,44 @@ async function mainProcess(event, context) {
       switch (err.name) {
         case 'TokenExpiredError':
           console.log("Token expired, redirecting to OIDC provider.");
-          return redirect(request, headers);
+          return redirect(request, headers, isApi);
         case 'JsonWebTokenError':
           console.log("JWT error, unauthorized.");
-          return unauthorized('Json Web Token Error', err.message, '');
+          return unauthorized('Json Web Token Error', err.message, '', isApi);
         default:
           console.log("Unknown JWT error, unauthorized.");
-          return unauthorized('Unauthorized.', 'User ' + decoded.sub + ' is not permitted.', '');
+          return unauthorized('Unauthorized.', 'User ' + decoded.sub + ' is not permitted.', '', isApi);
       }
     }
   } else {
     console.log("Redirecting to OIDC provider.");
-    return redirect(request, headers);
+    return redirect(request, headers, isApi);
   }
 }
 
-function redirect(request, headers) {
+function isApiRequest(request) {
+  // Detect if request is for an API endpoint
+  return request.uri.startsWith('/api/');
+}
+
+function redirect(request, headers, isApi = false) {
+  // For API requests, return 401 JSON instead of redirecting
+  if (isApi) {
+    console.log("API request detected, returning 401 JSON response.");
+    return {
+      "status": "401",
+      "statusDescription": "Unauthorized",
+      "body": JSON.stringify({ error: "unauthorized" }),
+      "headers": {
+        "content-type": [{
+          "key": "Content-Type",
+          "value": "application/json"
+        }]
+      }
+    };
+  }
+  
+  // For web requests, redirect to login
   const n = nonce.getNonce();
   config.AUTH_REQUEST.nonce = n[0];
   config.AUTH_REQUEST.state = request.uri;
@@ -275,7 +300,28 @@ function redirect(request, headers) {
   };
 }
 
-function unauthorized(error, error_description, error_uri) {
+function unauthorized(error, error_description, error_uri, isApi = false) {
+  // For API requests, return 401 JSON instead of HTML
+  if (isApi) {
+    console.log("API request detected, returning 401 JSON response.");
+    return {
+      "status": "401",
+      "statusDescription": "Unauthorized",
+      "body": JSON.stringify({ 
+        error: "unauthorized",
+        error_description: error_description || error,
+        error_uri: error_uri || ''
+      }),
+      "headers": {
+        "content-type": [{
+          "key": "Content-Type",
+          "value": "application/json"
+        }]
+      }
+    };
+  }
+  
+  // For web requests, return HTML error page
   let page = `
   <!DOCTYPE html>
   <html lang="en">
