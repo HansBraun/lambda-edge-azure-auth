@@ -1,7 +1,7 @@
-const redirect = (request, callback) => {
+const redirect = (request) => {
   const location = request.querystring ? `${request.uri}/?${request.querystring}` : `${request.uri}/`
 
-  const response = {
+  return {
     status: '301',
     statusDescription: 'Moved Permanently',
     headers: {
@@ -11,7 +11,6 @@ const redirect = (request, callback) => {
       }]
     }
   };
-  callback(null, response);
 }
 
 module.exports.handleIndexes = (uri) => {
@@ -23,9 +22,9 @@ module.exports.handleIndexes = (uri) => {
   return uri;
 }
 
-module.exports.handleRedirect = (request, callback) => {
+module.exports.handleRedirect = (request) => {
   if (!request.uri.endsWith('/') && !request.uri.includes('.')) {
     console.log(`301 redirect ${request.uri} to ${request.uri}/`);
-    redirect(request, callback);
+    return redirect(request);
   }
 }

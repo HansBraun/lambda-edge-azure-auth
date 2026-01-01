@@ -82,6 +82,24 @@ This document outlines the changes made to make this project compatible with Nod
 #### nonce.js
 - No changes needed - uses built-in `crypto` module which is available in all Node versions
 
+#### authn/openid.index.js
+- **CRITICAL**: Converted Lambda handler from callback-based to async/await pattern (required for Node.js 24):
+  - `exports.handler = (event, context, callback) => { ... }` → `exports.handler = async (event, context) => { ... }`
+  - Converted all callback invocations to return statements
+  - Converted `mainProcess()` function to async
+  - Wrapped `jwt.verify()` callback-based calls in Promises for use with async/await
+  - Updated helper functions (`redirect()`, `unauthorized()`, `internalServerError()`) to return responses directly instead of using callbacks
+  - Converted all axios callbacks (`.then()/.catch()`) to async/await
+
+#### authz/microsoft.js
+- Updated `isAuthorized()` function to return response directly instead of using callback
+- Removed `callback` parameter from function signature
+
+#### simpleurl.js
+- Updated `redirect()` function to return response directly instead of using callback
+- Updated `handleRedirect()` function to return response directly instead of using callback
+- Removed all `callback` parameters from function signatures
+
 ### 3. Webpack Configuration
 - No changes needed - webpack.config.js is already compatible with webpack 5
 
@@ -130,6 +148,7 @@ After migration, test the project by:
 - [x] Replace deprecated `url.parse()` with `URL` class
 - [x] Update AWS SDK v2 to v3 in tests
 - [x] Remove deprecated Buffer constructor usage
+- [x] Convert Lambda handlers from callback-based to async/await pattern
 - [x] Test installation with `npm install`
 - [x] Verify webpack compatibility
 
